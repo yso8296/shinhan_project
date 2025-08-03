@@ -76,7 +76,7 @@ export default function Home() {
   const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
   // 타이핑 속도
-  const typingSpeed = 150
+  const typingSpeed = 120
 
   // 실시간 업데이트 효과
   useEffect(() => {
@@ -101,16 +101,23 @@ export default function Home() {
   }, [])
 
   const checkServerStatus = async () => {
+    console.log('=== 서버 상태 확인 시작 ===')
     try {
       const response = await fetch('http://localhost:8000/health')
+      console.log('서버 상태 응답:', response.status, response.ok)
+      
       if (response.ok) {
         setServerStatus('connected')
+        console.log('서버 연결됨')
       } else {
         setServerStatus('disconnected')
+        console.log('서버 연결 안됨 (응답 오류)')
       }
     } catch (error) {
+      console.error('서버 연결 오류:', error)
       setServerStatus('disconnected')
     }
+    console.log('=== 서버 상태 확인 완료 ===')
   }
 
   // 파일 업로드 처리
@@ -140,21 +147,41 @@ export default function Home() {
 
   // 텍스트 점진적 표시
   const typeTextProgressively = (fullText: string) => {
+    console.log('텍스트 점진적 표시 시작:', fullText)
+    console.log('현재 재생 상태:', isPlaying)
+    
     setIsTyping(true)
     setDisplayedText("")
     
-    for (let i = 0; i < fullText.length; i++) {
-      setTimeout(() => {
-        setDisplayedText(fullText.substring(0, i + 1))
-        if (i === fullText.length - 1) {
-          setIsTyping(false)
-        }
-      }, i * typingSpeed)
+    let currentIndex = 0
+    const totalLength = fullText.length
+    
+    const typeNextCharacter = () => {
+      // 재생 상태와 관계없이 텍스트를 완전히 표시
+      if (currentIndex < totalLength) {
+        setDisplayedText(fullText.substring(0, currentIndex + 1))
+        currentIndex++
+        setTimeout(typeNextCharacter, typingSpeed)
+      } else {
+        setIsTyping(false)
+        console.log('텍스트 표시 완료:', currentIndex, totalLength)
+        
+        // 텍스트 표시가 완료되면 요약과 스크립트 생성
+        console.log('요약과 스크립트 생성 시작')
+        setTimeout(async () => {
+          await generateSummaryAndScript(fullText)
+        }, 1000)
+      }
     }
+    
+    typeNextCharacter()
   }
 
   // 음성 파일을 텍스트로 변환하는 함수
   const transcribeAudio = async (file: File) => {
+    console.log('=== transcribeAudio 시작 ===')
+    console.log('파일 정보:', file.name, file.size, file.type)
+    
     setIsTranscribing(true)
     setTranscriptionError("")
     
@@ -162,10 +189,13 @@ export default function Home() {
       const formData = new FormData()
       formData.append('file', file)
       
+      console.log('백엔드 API 호출 시작...')
       const response = await fetch('http://localhost:8000/transcribe', {
         method: 'POST',
         body: formData,
       })
+      
+      console.log('백엔드 응답 상태:', response.status, response.ok)
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -175,18 +205,14 @@ export default function Home() {
       }
       
       const data = await response.json()
+      console.log('백엔드 응답 데이터:', data)
       
       if (data.success) {
         setTranscribedText(data.text)
         console.log('음성 변환 완료:', data.text)
         
-        // 점진적 텍스트 표시 시작
+        // 점진적 텍스트 표시 시작 (이 함수 내부에서 요약과 스크립트 생성)
         typeTextProgressively(data.text)
-        
-        // 음성 변환 완료 후 자동으로 요약 실행 (텍스트 표시 완료 후)
-        setTimeout(async () => {
-          await summarizeText(data.text)
-        }, data.text.length * typingSpeed + 2000) // 텍스트 표시 완료 후 2초 지연
       } else {
         throw new Error('음성 변환에 실패했습니다.')
       }
@@ -195,17 +221,20 @@ export default function Home() {
       setTranscriptionError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsTranscribing(false)
+      console.log('=== transcribeAudio 완료 ===')
     }
   }
 
   // 텍스트를 요약하는 함수
   const summarizeText = async (text: string) => {
+    console.log('=== summarizeText 시작 ===')
     if (!text.trim()) return
     
     setIsSummarizing(true)
     setSummaryError("")
     
     try {
+      console.log('요약 API 호출 시작...')
       const response = await fetch('http://localhost:8000/summarize', {
         method: 'POST',
         headers: {
@@ -214,6 +243,8 @@ export default function Home() {
         body: JSON.stringify({ text }),
       })
       
+      console.log('요약 API 응답 상태:', response.status, response.ok)
+      
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.')
@@ -222,15 +253,11 @@ export default function Home() {
       }
       
       const data = await response.json()
+      console.log('요약 API 응답 데이터:', data)
       
       if (data.success) {
         setSummary(data.summary)
         console.log('요약 완료:', data.summary)
-        
-        // 요약 완료 후 자동으로 스크립트 생성
-        setTimeout(async () => {
-          await generateScript(text)
-        }, 1000)
       } else {
         throw new Error('요약에 실패했습니다.')
       }
@@ -239,17 +266,20 @@ export default function Home() {
       setSummaryError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsSummarizing(false)
+      console.log('=== summarizeText 완료 ===')
     }
   }
 
   // 스크립트를 생성하는 함수
   const generateScript = async (text: string) => {
+    console.log('=== generateScript 시작 ===')
     if (!text.trim()) return
     
     setIsGeneratingScript(true)
     setScriptError("")
     
     try {
+      console.log('스크립트 API 호출 시작...')
       const response = await fetch('http://localhost:8000/generate-script', {
         method: 'POST',
         headers: {
@@ -257,6 +287,8 @@ export default function Home() {
         },
         body: JSON.stringify({ text }),
       })
+      
+      console.log('스크립트 API 응답 상태:', response.status, response.ok)
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -266,6 +298,7 @@ export default function Home() {
       }
       
       const data = await response.json()
+      console.log('스크립트 API 응답 데이터:', data)
       
       if (data.success) {
         setScript(data.script)
@@ -278,7 +311,33 @@ export default function Home() {
       setScriptError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsGeneratingScript(false)
+      console.log('=== generateScript 완료 ===')
     }
+  }
+
+  // 요약과 스크립트를 동시에 생성하는 함수
+  const generateSummaryAndScript = async (text: string) => {
+    console.log('=== generateSummaryAndScript 시작 ===')
+    console.log('입력 텍스트:', text)
+    
+    if (!text.trim()) {
+      console.log('텍스트가 비어있어서 처리하지 않습니다.')
+      return
+    }
+    
+    // 두 작업을 동시에 시작
+    const summaryPromise = summarizeText(text)
+    const scriptPromise = generateScript(text)
+    
+    // 두 작업이 모두 완료될 때까지 대기
+    try {
+      await Promise.all([summaryPromise, scriptPromise])
+      console.log('요약과 스크립트 생성이 모두 완료되었습니다.')
+    } catch (error) {
+      console.error('요약 또는 스크립트 생성 중 오류:', error)
+    }
+    
+    console.log('=== generateSummaryAndScript 완료 ===')
   }
 
   // 재생/일시정지 토글
@@ -286,17 +345,25 @@ export default function Home() {
     if (!audioRef.current) return
 
     if (isPlaying) {
+      console.log('재생 중단')
       audioRef.current.pause()
       setIsPlaying(false)
+      // 재생 중단 시 타이핑 상태도 중단
+      setIsTyping(false)
     } else {
       try {
+        console.log('재생 시작')
+        setIsPlaying(true) // 먼저 재생 상태를 true로 설정
         audioRef.current.play()
-        setIsPlaying(true)
         
         // 재생 시작 시 음성 변환 시작
         if (audioFile && !transcribedText) {
           console.log('음성 변환 시작...')
           await transcribeAudio(audioFile)
+        } else if (transcribedText && !displayedText) {
+          // 이미 변환된 텍스트가 있지만 표시되지 않은 경우
+          console.log('기존 텍스트 표시 시작')
+          typeTextProgressively(transcribedText)
         }
       } catch (error) {
         console.error('오디오 재생 오류:', error)
@@ -378,6 +445,7 @@ export default function Home() {
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={() => {
             setIsPlaying(false)
+            setIsTyping(false)
           }}
         />
       )}
