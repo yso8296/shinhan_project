@@ -1,153 +1,202 @@
-"use client";
+"use client"
 
-import { Heart, Volume2, Shield, AlertTriangle, CheckCircle, Mic, MicOff, Settings, Bell, BarChart3, Upload, Play, Pause, SkipBack, SkipForward } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { 
+  Upload, 
+  Play, 
+  Pause, 
+  SkipBack, 
+  SkipForward,
+  Search,
+  Menu,
+  Settings,
+  Wifi,
+  WifiOff,
+  Server,
+  ServerOff,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Heart,
+  Volume2,
+  Shield,
+  AlertTriangle,
+  Mic,
+  MicOff,
+  Bell,
+  BarChart3
+} from "lucide-react"
 
 export default function Home() {
-  const [isRecording, setIsRecording] = useState(true);
-  const [riskLevel, setRiskLevel] = useState(15);
-  const [latency, setLatency] = useState(91);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [autoProtection, setAutoProtection] = useState(true);
-  const [sensitivity, setSensitivity] = useState([50]);
-  const [showSettings, setShowSettings] = useState(false);
-  
-  // 음성파일 관련 상태
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
-  const [volume, setVolume] = useState([50]);
-  
-  // 텍스트 변환 관련 상태
-  const [transcribedText, setTranscribedText] = useState("");
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [transcriptionError, setTranscriptionError] = useState("");
-  
-  // 요약 관련 상태
-  const [summary, setSummary] = useState("");
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [summaryError, setSummaryError] = useState("");
-  
-  // 서버 상태
-  const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  
-  const audioRef = useRef<HTMLAudioElement>(null);
+  // UI 상태
+  const [isRecording, setIsRecording] = useState(true)
+  const [riskLevel, setRiskLevel] = useState(15)
+  const [latency, setLatency] = useState(91)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [autoProtection, setAutoProtection] = useState(true)
+  const [sensitivity, setSensitivity] = useState([50])
+  const [showSettings, setShowSettings] = useState(false)
 
-  // 실시간 효과를 위한 useEffect
+  // 오디오 관련 상태
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [volume, setVolume] = useState([50])
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  // 텍스트 변환 관련 상태
+  const [transcribedText, setTranscribedText] = useState("")
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [transcriptionError, setTranscriptionError] = useState("")
+  const [displayedText, setDisplayedText] = useState("")
+  const [isTyping, setIsTyping] = useState(false)
+
+  // AI 요약 관련 상태
+  const [summary, setSummary] = useState("")
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [summaryError, setSummaryError] = useState("")
+
+  // 서버 상태
+  const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
+
+  // 타이핑 속도
+  const typingSpeed = 150
+
+  // 실시간 업데이트 효과
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(prev => (prev + 0.1) % 180); // 3분(180초) 주기
-      setLatency(prev => Math.max(50, Math.min(150, prev + (Math.random() - 0.5) * 10)));
+      setCurrentTime(prev => (prev + 0.1) % 180) // 3분(180초) 주기
+      setLatency(prev => Math.max(50, Math.min(150, prev + (Math.random() - 0.5) * 10)))
       
       // 리스크 레벨 동적 변화 (실제 환경 시뮬레이션)
       if (Math.random() > 0.95) {
-        setRiskLevel(prev => Math.min(100, prev + Math.random() * 10));
+        setRiskLevel(prev => Math.min(100, prev + Math.random() * 10))
       } else if (Math.random() > 0.9) {
-        setRiskLevel(prev => Math.max(0, prev - Math.random() * 5));
+        setRiskLevel(prev => Math.max(0, prev - Math.random() * 5))
       }
-    }, 100);
+    }, 100)
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [])
 
   // 서버 상태 확인
   useEffect(() => {
-    checkServerStatus();
-  }, []);
+    checkServerStatus()
+  }, [])
 
-  // 서버 상태 확인 함수
   const checkServerStatus = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health', {
-        method: 'GET',
-      });
-      
+      const response = await fetch('http://localhost:8000/health')
       if (response.ok) {
-        setServerStatus('connected');
+        setServerStatus('connected')
       } else {
-        setServerStatus('disconnected');
+        setServerStatus('disconnected')
       }
     } catch (error) {
-      console.error('서버 연결 확인 실패:', error);
-      setServerStatus('disconnected');
+      setServerStatus('disconnected')
     }
-  };
+  }
 
-  // 오디오 파일 처리
+  // 파일 업로드 처리
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type.startsWith('audio/')) {
-      setAudioFile(file);
-      const url = URL.createObjectURL(file);
-      setAudioUrl(url);
-      setIsPlaying(false);
-      setAudioCurrentTime(0);
-      setTranscribedText("");
-      setTranscriptionError("");
-      setSummary("");
-      setSummaryError("");
-      
-      // 파일 업로드 시 자동으로 텍스트 변환 시작
-      await transcribeAudio(file);
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setAudioFile(file)
+    setTranscribedText("")
+    setDisplayedText("")
+    setSummary("")
+    setTranscriptionError("")
+    setSummaryError("")
+
+    // 오디오 URL 생성
+    const url = URL.createObjectURL(file)
+    setAudioUrl(url)
+
+    // 오디오 메타데이터 설정
+    if (audioRef.current) {
+      audioRef.current.src = url
+      audioRef.current.load()
     }
-  };
+  }
+
+  // 텍스트 점진적 표시
+  const typeTextProgressively = (fullText: string) => {
+    setIsTyping(true)
+    setDisplayedText("")
+    
+    for (let i = 0; i < fullText.length; i++) {
+      setTimeout(() => {
+        setDisplayedText(fullText.substring(0, i + 1))
+        if (i === fullText.length - 1) {
+          setIsTyping(false)
+        }
+      }, i * typingSpeed)
+    }
+  }
 
   // 음성 파일을 텍스트로 변환하는 함수
   const transcribeAudio = async (file: File) => {
-    setIsTranscribing(true);
-    setTranscriptionError("");
+    setIsTranscribing(true)
+    setTranscriptionError("")
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const formData = new FormData()
+      formData.append('file', file)
       
       const response = await fetch('http://localhost:8000/transcribe', {
         method: 'POST',
         body: formData,
-      });
+      })
       
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.');
+          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.')
         }
-        throw new Error(`서버 오류: ${response.status}`);
+        throw new Error(`서버 오류: ${response.status}`)
       }
       
-      const data = await response.json();
+      const data = await response.json()
       
       if (data.success) {
-        setTranscribedText(data.text);
-        console.log('음성 변환 완료:', data.text);
+        setTranscribedText(data.text)
+        console.log('음성 변환 완료:', data.text)
         
-        // 음성 변환 완료 후 자동으로 요약 실행
-        await summarizeText(data.text);
+        // 점진적 텍스트 표시 시작
+        typeTextProgressively(data.text)
+        
+        // 음성 변환 완료 후 자동으로 요약 실행 (텍스트 표시 완료 후)
+        setTimeout(async () => {
+          await summarizeText(data.text)
+        }, data.text.length * typingSpeed + 2000) // 텍스트 표시 완료 후 2초 지연
       } else {
-        throw new Error('음성 변환에 실패했습니다.');
+        throw new Error('음성 변환에 실패했습니다.')
       }
     } catch (error) {
-      console.error('음성 변환 오류:', error);
-      setTranscriptionError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+      console.error('음성 변환 오류:', error)
+      setTranscriptionError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
-      setIsTranscribing(false);
+      setIsTranscribing(false)
     }
-  };
+  }
 
   // 텍스트를 요약하는 함수
   const summarizeText = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim()) return
     
-    setIsSummarizing(true);
-    setSummaryError("");
+    setIsSummarizing(true)
+    setSummaryError("")
     
     try {
       const response = await fetch('http://localhost:8000/summarize', {
@@ -156,103 +205,116 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ text }),
-      });
+      })
       
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.');
+          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.')
         }
-        throw new Error(`서버 오류: ${response.status}`);
+        throw new Error(`서버 오류: ${response.status}`)
       }
       
-      const data = await response.json();
+      const data = await response.json()
       
       if (data.success) {
-        setSummary(data.summary);
-        console.log('요약 완료:', data.summary);
+        setSummary(data.summary)
+        console.log('요약 완료:', data.summary)
       } else {
-        throw new Error('요약에 실패했습니다.');
+        throw new Error('요약에 실패했습니다.')
       }
     } catch (error) {
-      console.error('요약 오류:', error);
-      setSummaryError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+      console.error('요약 오류:', error)
+      setSummaryError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
-      setIsSummarizing(false);
+      setIsSummarizing(false)
     }
-  };
+  }
 
-  // 오디오 재생/일시정지
-  const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
+  // 재생/일시정지 토글
+  const togglePlayPause = async () => {
+    if (!audioRef.current) return
+
+    if (isPlaying) {
+      audioRef.current.pause()
+      setIsPlaying(false)
+    } else {
+      try {
+        audioRef.current.play()
+        setIsPlaying(true)
+        
+        // 재생 시작 시 음성 변환 시작
+        if (audioFile && !transcribedText) {
+          console.log('음성 변환 시작...')
+          await transcribeAudio(audioFile)
+        }
+      } catch (error) {
+        console.error('오디오 재생 오류:', error)
+        setIsPlaying(false)
+        setTranscriptionError('오디오 재생 중 오류가 발생했습니다.')
       }
-      setIsPlaying(!isPlaying);
     }
-  };
+  }
 
   // 오디오 시간 업데이트
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setAudioCurrentTime(audioRef.current.currentTime);
+      setAudioCurrentTime(audioRef.current.currentTime)
     }
-  };
+  }
 
-  // 오디오 로드 완료
+  // 오디오 메타데이터 로드
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setAudioDuration(audioRef.current.duration);
+      setAudioDuration(audioRef.current.duration)
     }
-  };
+  }
 
-  // 볼륨 조절
+  // 볼륨 변경
   const handleVolumeChange = (value: number[]) => {
-    setVolume(value);
+    setVolume(value)
     if (audioRef.current) {
-      audioRef.current.volume = value[0] / 100;
+      audioRef.current.volume = value[0] / 100
     }
-  };
+  }
 
   // 시간 포맷팅
   const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+    const minutes = Math.floor(time / 60)
+    const seconds = Math.floor(time % 60)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
 
-  // 오디오 웨이브폼 데이터 생성
+  // 파형 데이터 생성
   const generateWaveformData = () => {
     return Array.from({ length: 120 }).map((_, i) => {
       // 더 자연스러운 파동을 위한 사인파 기반 높이 계산
-      const baseHeight = 30 + Math.sin(i * 0.2) * 20 + Math.sin(i * 0.5) * 15 + Math.sin(i * 0.8) * 10;
+      const baseHeight = 30 + Math.sin(i * 0.2) * 20 + Math.sin(i * 0.5) * 15 + Math.sin(i * 0.8) * 10
       // 서버와 클라이언트 간 일관성을 위해 고정된 값 사용
-      const randomVariation = isPlaying ? (i % 3) * 5 : 0;
-      const height = baseHeight + randomVariation;
+      const randomVariation = isPlaying ? (i % 3) * 5 : 0
+      const height = baseHeight + randomVariation
       
       return {
         height: Math.max(10, Math.min(70, height)),
         isCurrent: false,
         isActive: false,
         opacity: 0.8
-      };
-    });
-  };
+      }
+    })
+  }
 
-  const waveformData = generateWaveformData();
+  const waveformData = generateWaveformData()
 
   const getRiskColor = (level: number) => {
-    if (level < 30) return 'text-green-600';
-    if (level < 70) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+    if (level < 30) return 'text-green-600'
+    if (level < 70) return 'text-yellow-600'
+    return 'text-red-600'
+  }
 
   const getRiskBgColor = (level: number) => {
-    if (level < 30) return 'bg-green-50 border-green-600';
-    if (level < 70) return 'bg-yellow-50 border-yellow-600';
-    return 'bg-red-50 border-red-600';
-  };
+    if (level < 30) return 'bg-green-50 border-green-600'
+    if (level < 70) return 'bg-yellow-50 border-yellow-600'
+    return 'bg-red-50 border-red-600'
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
@@ -263,7 +325,9 @@ export default function Home() {
           src={audioUrl}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
-          onEnded={() => setIsPlaying(false)}
+          onEnded={() => {
+            setIsPlaying(false)
+          }}
         />
       )}
 
@@ -416,19 +480,28 @@ export default function Home() {
                 <div className="text-red-600 text-sm">
                   오류: {transcriptionError}
                 </div>
-              ) : transcribedText ? (
-                <p className="text-gray-800 leading-relaxed">
-                  {transcribedText}
-                </p>
+              ) : displayedText ? (
+                <div>
+                  <p className="text-gray-800 leading-relaxed">
+                    {displayedText}
+                    {isTyping && <span className="animate-pulse">|</span>}
+                  </p>
+                  {isTyping && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm text-gray-500">실시간 변환 중...</span>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="text-gray-400 text-sm">
                   음성 파일을 업로드하면 텍스트로 변환됩니다.
                 </div>
               )}
-              {isTranscribing && (
+              {!isTranscribing && !isTyping && displayedText && (
                 <div className="mt-2 flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-500">실시간 변환 중...</span>
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-gray-500">변환 완료</span>
                 </div>
               )}
             </div>
@@ -455,24 +528,20 @@ export default function Home() {
                   요약 오류: {summaryError}
                 </div>
               ) : summary ? (
-                <p className="text-blue-800 font-medium">
-                  {summary}
-                </p>
-              ) : transcribedText ? (
-                <p className="text-blue-800 font-medium">
-                  음성 파일 분석 완료
-                </p>
+                <div className="space-y-2">
+                  <p className="text-blue-800 font-medium leading-relaxed">
+                    {summary}
+                  </p>
+                  <div className="flex items-center space-x-2 text-xs text-blue-600">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    <span>AI 분석 완료</span>
+                  </div>
+                </div>
               ) : (
-                <p className="text-blue-800 font-medium">
-                  통신 요금 상승으로 인한 문의
-                </p>
+                <div className="text-blue-400 text-sm">
+                  음성 파일을 업로드하면 AI가 내용을 분석하고 요약합니다.
+                </div>
               )}
-              <div className="mt-2 flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-blue-600">
-                  {isSummarizing ? 'AI 분석 중...' : summary ? 'AI 분석 완료' : 'AI 분석 대기 중'}
-                </span>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -488,7 +557,7 @@ export default function Home() {
           <CardContent>
             <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
               <p className="text-yellow-800 leading-relaxed font-medium">
-                {transcribedText ? '음성 내용을 바탕으로 한 맞춤형 응답을 생성 중입니다.' : '먼저 고객님의 정보 확인을 위해서 성함과 생년월일을 알 수 있을까요?'}
+                {displayedText ? '음성 내용을 바탕으로 한 맞춤형 응답을 생성 중입니다.' : '먼저 고객님의 정보 확인을 위해서 성함과 생년월일을 알 수 있을까요?'}
               </p>
               <div className="mt-3 flex items-center space-x-2">
                 <Badge variant="outline" className="text-yellow-700 border-yellow-300">
@@ -537,5 +606,5 @@ export default function Home() {
         </Card>
       </div>
     </div>
-  );
+  )
 }

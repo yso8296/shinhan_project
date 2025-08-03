@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -8,6 +8,11 @@ import tempfile
 from openai import OpenAI
 from config import settings
 import logging
+import json
+import asyncio
+import wave
+import numpy as np
+from typing import List
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +35,23 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 # 업로드 디렉토리 생성
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
+# 웹소켓 연결 관리
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+manager = ConnectionManager()
+
 # 요청 모델
 class SummaryRequest(BaseModel):
     text: str
@@ -37,6 +59,75 @@ class SummaryRequest(BaseModel):
 @app.get("/")
 async def root():
     return {"message": "AI 상담사 정서 케어 API"}
+
+@app.websocket("/ws/audio-stream")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    logger.info(f"웹소켓 연결됨: {id(websocket)}")
+    
+    try:
+        while True:
+            # 클라이언트로부터 오디오 청크 수신
+            data = await websocket.receive_bytes()
+            logger.info(f"오디오 청크 수신됨: {len(data)} bytes")
+            
+            # 임시 파일로 저장
+            temp_file_path = os.path.join(settings.UPLOAD_DIR, f"temp_chunk_{id(websocket)}_{int(asyncio.get_event_loop().time())}.wav")
+            
+            try:
+                # WAV 파일로 저장 (16kHz, 16bit, mono)
+                with wave.open(temp_file_path, 'wb') as wav_file:
+                    wav_file.setnchannels(1)  # mono
+                    wav_file.setsampwidth(2)  # 16bit
+                    wav_file.setframerate(16000)  # 16kHz
+                    wav_file.writeframes(data)
+                
+                logger.info(f"임시 파일 저장됨: {temp_file_path}")
+                
+                # OpenAI Whisper API 호출
+                with open(temp_file_path, "rb") as audio_file:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="ko"
+                    )
+                
+                logger.info(f"음성 변환 완료: {transcript.text}")
+                
+                # 결과를 클라이언트로 전송
+                if transcript.text.strip():
+                    await manager.send_personal_message(
+                        json.dumps({
+                            "type": "transcription",
+                            "text": transcript.text,
+                            "timestamp": asyncio.get_event_loop().time()
+                        }),
+                        websocket
+                    )
+                else:
+                    logger.info("변환된 텍스트가 없습니다.")
+                
+            except Exception as e:
+                logger.error(f"Whisper API 오류: {str(e)}")
+                await manager.send_personal_message(
+                    json.dumps({
+                        "type": "error",
+                        "message": f"음성 변환 중 오류가 발생했습니다: {str(e)}"
+                    }),
+                    websocket
+                )
+            finally:
+                # 임시 파일 삭제
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                    logger.info(f"임시 파일 삭제됨: {temp_file_path}")
+                    
+    except WebSocketDisconnect:
+        logger.info(f"웹소켓 연결 해제됨: {id(websocket)}")
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"웹소켓 오류: {str(e)}")
+        manager.disconnect(websocket)
 
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
@@ -111,14 +202,14 @@ async def summarize_text(request: SummaryRequest):
                 messages=[
                     {
                         "role": "system",
-                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 간결하고 명확하게 요약해주세요. 요약은 20자 이내로 작성하고, 고객의 주요 문의사항과 감정 상태를 파악할 수 있도록 해주세요."
+                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 분석하여 자연스러운 3문장으로 요약해주세요:\n\n첫 번째 문장에서는 고객의 주요 문의사항과 구체적인 상황을 설명하고, 두 번째 문장에서는 고객의 감정 상태와 배경 상황을 설명하며, 세 번째 문장에서는 고객이 원하는 해결책이나 추가 문의사항을 설명해주세요.\n\n각 문장은 구체적이고 명확하게 작성하며, '첫 번째 문장', '두 번째 문장' 등의 표기는 사용하지 말고 자연스럽게 연결되는 3문장으로 작성해주세요."
                     },
                     {
                         "role": "user",
-                        "content": f"다음 고객 문의 내용을 요약해주세요: {request.text}"
+                        "content": f"다음 고객 문의 내용을 3문장으로 요약해주세요: {request.text}"
                     }
                 ],
-                max_tokens=100,
+                max_tokens=300,
                 temperature=0.3
             )
             
