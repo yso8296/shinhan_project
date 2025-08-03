@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import aiofiles
 import os
 import tempfile
@@ -28,6 +29,10 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 # 업로드 디렉토리 생성
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
+# 요청 모델
+class SummaryRequest(BaseModel):
+    text: str
 
 @app.get("/")
 async def root():
@@ -83,6 +88,52 @@ async def transcribe_audio(file: UploadFile = File(...)):
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
             raise HTTPException(status_code=500, detail=f"음성 변환 중 오류가 발생했습니다: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"예상치 못한 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+@app.post("/summarize")
+async def summarize_text(request: SummaryRequest):
+    """
+    텍스트를 요약하는 API
+    """
+    try:
+        if not request.text.strip():
+            raise HTTPException(status_code=400, detail="요약할 텍스트가 없습니다.")
+        
+        # OpenAI GPT API 호출
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 간결하고 명확하게 요약해주세요. 요약은 20자 이내로 작성하고, 고객의 주요 문의사항과 감정 상태를 파악할 수 있도록 해주세요."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"다음 고객 문의 내용을 요약해주세요: {request.text}"
+                    }
+                ],
+                max_tokens=100,
+                temperature=0.3
+            )
+            
+            summary = response.choices[0].message.content.strip()
+            logger.info(f"텍스트 요약 완료: {summary}")
+            
+            return JSONResponse(content={
+                "success": True,
+                "summary": summary,
+                "original_text": request.text
+            })
+            
+        except Exception as e:
+            logger.error(f"GPT API 오류: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"요약 중 오류가 발생했습니다: {str(e)}")
             
     except HTTPException:
         raise

@@ -33,6 +33,14 @@ export default function Home() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState("");
   
+  // 요약 관련 상태
+  const [summary, setSummary] = useState("");
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  
+  // 서버 상태
+  const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // 실시간 효과를 위한 useEffect
@@ -52,6 +60,29 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // 서버 상태 확인
+  useEffect(() => {
+    checkServerStatus();
+  }, []);
+
+  // 서버 상태 확인 함수
+  const checkServerStatus = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/health', {
+        method: 'GET',
+      });
+      
+      if (response.ok) {
+        setServerStatus('connected');
+      } else {
+        setServerStatus('disconnected');
+      }
+    } catch (error) {
+      console.error('서버 연결 확인 실패:', error);
+      setServerStatus('disconnected');
+    }
+  };
+
   // 오디오 파일 처리
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -63,6 +94,8 @@ export default function Home() {
       setAudioCurrentTime(0);
       setTranscribedText("");
       setTranscriptionError("");
+      setSummary("");
+      setSummaryError("");
       
       // 파일 업로드 시 자동으로 텍스트 변환 시작
       await transcribeAudio(file);
@@ -84,7 +117,10 @@ export default function Home() {
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 404) {
+          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.');
+        }
+        throw new Error(`서버 오류: ${response.status}`);
       }
       
       const data = await response.json();
@@ -92,6 +128,9 @@ export default function Home() {
       if (data.success) {
         setTranscribedText(data.text);
         console.log('음성 변환 완료:', data.text);
+        
+        // 음성 변환 완료 후 자동으로 요약 실행
+        await summarizeText(data.text);
       } else {
         throw new Error('음성 변환에 실패했습니다.');
       }
@@ -100,6 +139,45 @@ export default function Home() {
       setTranscriptionError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
     } finally {
       setIsTranscribing(false);
+    }
+  };
+
+  // 텍스트를 요약하는 함수
+  const summarizeText = async (text: string) => {
+    if (!text.trim()) return;
+    
+    setIsSummarizing(true);
+    setSummaryError("");
+    
+    try {
+      const response = await fetch('http://localhost:8000/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.');
+        }
+        throw new Error(`서버 오류: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSummary(data.summary);
+        console.log('요약 완료:', data.summary);
+      } else {
+        throw new Error('요약에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('요약 오류:', error);
+      setSummaryError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+    } finally {
+      setIsSummarizing(false);
     }
   };
 
@@ -149,7 +227,8 @@ export default function Home() {
     return Array.from({ length: 120 }).map((_, i) => {
       // 더 자연스러운 파동을 위한 사인파 기반 높이 계산
       const baseHeight = 30 + Math.sin(i * 0.2) * 20 + Math.sin(i * 0.5) * 15 + Math.sin(i * 0.8) * 10;
-      const randomVariation = isPlaying ? Math.random() * 15 : 0;
+      // 서버와 클라이언트 간 일관성을 위해 고정된 값 사용
+      const randomVariation = isPlaying ? (i % 3) * 5 : 0;
       const height = baseHeight + randomVariation;
       
       return {
@@ -195,6 +274,35 @@ export default function Home() {
             <Heart className="h-6 w-6 animate-pulse" />
             <span className="text-xl font-bold">Mallang</span>
           </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Badge 
+            variant="outline" 
+            className={`${
+              serverStatus === 'connected' 
+                ? 'text-green-600 border-green-600 bg-green-50' 
+                : serverStatus === 'checking'
+                ? 'text-yellow-600 border-yellow-600 bg-yellow-50'
+                : 'text-red-600 border-red-600 bg-red-50'
+            }`}
+          >
+            {serverStatus === 'connected' ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-1" />
+                서버 연결됨
+              </>
+            ) : serverStatus === 'checking' ? (
+              <>
+                <div className="h-4 w-4 mr-1 animate-spin rounded-full border-2 border-yellow-600 border-t-transparent"></div>
+                연결 확인 중
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-4 w-4 mr-1" />
+                서버 연결 안됨
+              </>
+            )}
+          </Badge>
         </div>
       </div>
 
@@ -313,18 +421,16 @@ export default function Home() {
                   {transcribedText}
                 </p>
               ) : (
-                <p className="text-gray-800 leading-relaxed">
-                  안녕하세요, 이번 달 요금이 평소보다 훨씬 많이 나와서 문의드려요. 
-                  제가 작년부터 썼는데 이래 많이 나온 거는 내 처음인데요. 
-                  아니 근데...
-                </p>
+                <div className="text-gray-400 text-sm">
+                  음성 파일을 업로드하면 텍스트로 변환됩니다.
+                </div>
               )}
-              <div className="mt-2 flex items-center space-x-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-500">
-                  {isTranscribing ? '실시간 변환 중...' : '변환 완료'}
-                </span>
-              </div>
+              {isTranscribing && (
+                <div className="mt-2 flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-500">실시간 변환 중...</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -339,12 +445,33 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-              <p className="text-blue-800 font-medium">
-                {transcribedText ? '음성 파일 분석 완료' : '통신 요금 상승으로 인한 문의'}
-              </p>
+              {isSummarizing ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-blue-600">AI가 내용을 분석하고 요약 중...</span>
+                </div>
+              ) : summaryError ? (
+                <div className="text-red-600 text-sm">
+                  요약 오류: {summaryError}
+                </div>
+              ) : summary ? (
+                <p className="text-blue-800 font-medium">
+                  {summary}
+                </p>
+              ) : transcribedText ? (
+                <p className="text-blue-800 font-medium">
+                  음성 파일 분석 완료
+                </p>
+              ) : (
+                <p className="text-blue-800 font-medium">
+                  통신 요금 상승으로 인한 문의
+                </p>
+              )}
               <div className="mt-2 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-blue-600">AI 분석 완료</span>
+                <span className="text-sm text-blue-600">
+                  {isSummarizing ? 'AI 분석 중...' : summary ? 'AI 분석 완료' : 'AI 분석 대기 중'}
+                </span>
               </div>
             </div>
           </CardContent>
