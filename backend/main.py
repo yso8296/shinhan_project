@@ -43,12 +43,21 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        logger.info(f"웹소켓 연결됨. 총 연결 수: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.remove(websocket)
+        logger.info(f"웹소켓 연결 해제됨. 총 연결 수: {len(self.active_connections)}")
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except Exception as e:
+                logger.error(f"웹소켓 메시지 전송 실패: {e}")
 
 manager = ConnectionManager()
 
@@ -61,9 +70,15 @@ async def root():
     return {"message": "AI 상담사 정서 케어 API"}
 
 @app.websocket("/ws/audio-stream")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_audio_stream(websocket: WebSocket):
+    """
+    실시간 음성 스트리밍을 위한 웹소켓 엔드포인트
+    """
     await manager.connect(websocket)
-    logger.info(f"웹소켓 연결됨: {id(websocket)}")
+    logger.info("실시간 음성 스트리밍 웹소켓 연결됨")
+    
+    # 중복 텍스트 방지를 위한 변수
+    last_transcript = ""
     
     try:
         while True:
@@ -92,20 +107,28 @@ async def websocket_endpoint(websocket: WebSocket):
                         language="ko"
                     )
                 
-                logger.info(f"음성 변환 완료: {transcript.text}")
+                current_text = transcript.text.strip()
+                logger.info(f"실시간 음성 변환 완료: {current_text}")
                 
-                # 결과를 클라이언트로 전송
-                if transcript.text.strip():
+                # 불필요한 텍스트 필터링 (더 관대하게)
+                filtered_text = current_text.replace('시청해주셔서 감사합니다.', '').replace('감사합니다.', '').replace('고맙습니다.', '').strip()
+                
+                # 중복 텍스트 방지 (더 관대하게)
+                if filtered_text and filtered_text != last_transcript and len(filtered_text) > 1:
+                    last_transcript = filtered_text
+                    
+                    # 결과를 클라이언트로 전송
                     await manager.send_personal_message(
                         json.dumps({
                             "type": "transcription",
-                            "text": transcript.text,
+                            "text": filtered_text,
                             "timestamp": asyncio.get_event_loop().time()
-                        }),
+                        }, ensure_ascii=False),
                         websocket
                     )
+                    logger.info(f"중복되지 않은 텍스트 전송: {filtered_text}")
                 else:
-                    logger.info("변환된 텍스트가 없습니다.")
+                    logger.info("중복 텍스트 또는 빈 텍스트로 전송 건너뜀")
                 
             except Exception as e:
                 logger.error(f"Whisper API 오류: {str(e)}")
@@ -113,7 +136,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     json.dumps({
                         "type": "error",
                         "message": f"음성 변환 중 오류가 발생했습니다: {str(e)}"
-                    }),
+                    }, ensure_ascii=False),
                     websocket
                 )
             finally:
@@ -123,10 +146,110 @@ async def websocket_endpoint(websocket: WebSocket):
                     logger.info(f"임시 파일 삭제됨: {temp_file_path}")
                     
     except WebSocketDisconnect:
-        logger.info(f"웹소켓 연결 해제됨: {id(websocket)}")
+        logger.info("실시간 음성 스트리밍 웹소켓 연결 해제됨")
         manager.disconnect(websocket)
     except Exception as e:
         logger.error(f"웹소켓 오류: {str(e)}")
+        manager.disconnect(websocket)
+
+@app.websocket("/ws/real-time-analysis")
+async def websocket_real_time_analysis(websocket: WebSocket):
+    """
+    실시간 위험도 분석을 위한 웹소켓 엔드포인트
+    """
+    await manager.connect(websocket)
+    logger.info("실시간 분석 웹소켓 연결됨")
+    
+    try:
+        while True:
+            # 클라이언트로부터 메시지 수신
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            
+            message_type = message_data.get("type")
+            
+            if message_type == "text_chunk":
+                # 텍스트 청크를 받아서 위험도 분석
+                text_chunk = message_data.get("text", "")
+                chunk_id = message_data.get("chunk_id", 0)
+                
+                if text_chunk.strip():
+                    try:
+                        # 위험도 분석 수행
+                        response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 대화 내용을 실시간으로 분석하여 위험도를 판단해주세요.\n\n다음 기준으로 위험도를 분류해주세요:\n\n1. 정상 단계 (0-30점): 일반적인 문의나 불만, 정상적인 감정 표현\n2. 경고 단계 (31-70점): 강한 불만, 감정적 표현, 약간의 공격적 어조\n3. 위험 단계 (71-100점): 극도의 분노, 폭력적 표현, 자해/타해 위험, 심각한 감정적 위기\n\n분석 결과를 다음 JSON 형식으로 반환해주세요:\n{\n  \"risk_level\": 점수(0-100),\n  \"risk_stage\": \"정상\" 또는 \"경고\" 또는 \"위험\",\n  \"emotion\": 주요 감정 상태,\n  \"analysis\": 위험도 판단 근거\n}"
+                                },
+                                {
+                                    "role": "user",
+                                    "content": f"다음 고객 대화 내용의 위험도를 실시간으로 분석해주세요: {text_chunk}"
+                                }
+                            ],
+                            max_tokens=200,
+                            temperature=0.1
+                        )
+                        
+                        analysis_text = response.choices[0].message.content.strip()
+                        
+                        # JSON 파싱 시도
+                        try:
+                            analysis_data = json.loads(analysis_text)
+                            risk_result = {
+                                "type": "risk_analysis",
+                                "chunk_id": chunk_id,
+                                "risk_level": analysis_data.get("risk_level", 0),
+                                "risk_stage": analysis_data.get("risk_stage", "정상"),
+                                "emotion": analysis_data.get("emotion", ""),
+                                "analysis": analysis_data.get("analysis", ""),
+                                "text_chunk": text_chunk
+                            }
+                        except json.JSONDecodeError:
+                            # JSON 파싱 실패 시 기본값 사용
+                            risk_result = {
+                                "type": "risk_analysis",
+                                "chunk_id": chunk_id,
+                                "risk_level": 0,
+                                "risk_stage": "정상",
+                                "emotion": "",
+                                "analysis": analysis_text,
+                                "text_chunk": text_chunk
+                            }
+                        
+                        # 분석 결과를 클라이언트에 전송
+                        await manager.send_personal_message(
+                            json.dumps(risk_result, ensure_ascii=False),
+                            websocket
+                        )
+                        
+                        logger.info(f"실시간 위험도 분석 완료 - 청크 {chunk_id}: {risk_result['risk_stage']}")
+                        
+                    except Exception as e:
+                        logger.error(f"실시간 위험도 분석 오류: {e}")
+                        error_result = {
+                            "type": "error",
+                            "chunk_id": chunk_id,
+                            "error": str(e)
+                        }
+                        await manager.send_personal_message(
+                            json.dumps(error_result, ensure_ascii=False),
+                            websocket
+                        )
+            
+            elif message_type == "ping":
+                # 연결 상태 확인
+                await manager.send_personal_message(
+                    json.dumps({"type": "pong"}),
+                    websocket
+                )
+                
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("실시간 분석 웹소켓 연결 해제됨")
+    except Exception as e:
+        logger.error(f"웹소켓 오류: {e}")
         manager.disconnect(websocket)
 
 @app.post("/transcribe")
@@ -271,6 +394,79 @@ async def generate_script(request: SummaryRequest):
         except Exception as e:
             logger.error(f"GPT API 오류: {str(e)}")
             raise HTTPException(status_code=500, detail=f"스크립트 생성 중 오류가 발생했습니다: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"예상치 못한 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
+@app.post("/analyze-risk")
+async def analyze_risk(request: SummaryRequest):
+    """
+    고객 대화 내용을 분석하여 위험도를 판단하는 API
+    """
+    try:
+        if not request.text.strip():
+            raise HTTPException(status_code=400, detail="분석할 텍스트가 없습니다.")
+        
+        # OpenAI GPT API 호출
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 대화 내용을 분석하여 위험도를 판단해주세요.\n\n다음 기준으로 위험도를 분류해주세요:\n\n1. 정상 단계 (0-30점): 일반적인 문의나 불만, 정상적인 감정 표현\n2. 경고 단계 (31-70점): 강한 불만, 감정적 표현, 약간의 공격적 어조\n3. 위험 단계 (71-100점): 극도의 분노, 폭력적 표현, 자해/타해 위험, 심각한 감정적 위기\n\n분석 결과를 다음 JSON 형식으로 반환해주세요:\n{\n  \"risk_level\": 점수(0-100),\n  \"risk_stage\": \"정상\" 또는 \"경고\" 또는 \"위험\",\n  \"emotion\": 주요 감정 상태,\n  \"analysis\": 위험도 판단 근거\n}"
+                    },
+                    {
+                        "role": "user",
+                        "content": f"다음 고객 대화 내용의 위험도를 분석해주세요: {request.text}"
+                    }
+                ],
+                max_tokens=300,
+                temperature=0.1
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            logger.info(f"위험도 분석 완료: {analysis_text}")
+            
+            # JSON 파싱 시도
+            try:
+                import json
+                analysis_data = json.loads(analysis_text)
+                return JSONResponse(content={
+                    "success": True,
+                    "risk_level": analysis_data.get("risk_level", 0),
+                    "risk_stage": analysis_data.get("risk_stage", "정상"),
+                    "emotion": analysis_data.get("emotion", ""),
+                    "analysis": analysis_data.get("analysis", ""),
+                    "raw_response": analysis_text
+                })
+            except json.JSONDecodeError:
+                # JSON 파싱 실패 시 텍스트에서 정보 추출
+                risk_level = 0
+                risk_stage = "정상"
+                
+                if "위험" in analysis_text:
+                    risk_stage = "위험"
+                    risk_level = 80
+                elif "경고" in analysis_text:
+                    risk_stage = "경고"
+                    risk_level = 50
+                
+                return JSONResponse(content={
+                    "success": True,
+                    "risk_level": risk_level,
+                    "risk_stage": risk_stage,
+                    "emotion": "",
+                    "analysis": analysis_text,
+                    "raw_response": analysis_text
+                })
+            
+        except Exception as e:
+            logger.error(f"GPT API 오류: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"위험도 분석 중 오류가 발생했습니다: {str(e)}")
             
     except HTTPException:
         raise
