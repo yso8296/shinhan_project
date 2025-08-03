@@ -102,14 +102,17 @@ export default function Home() {
 
   // 오디오 웨이브폼 데이터 생성
   const generateWaveformData = () => {
-    return Array.from({ length: 50 }).map((_, i) => {
-      const timePosition = (i / 50) * 180; // 3분 전체 길이
-      const isCurrentPosition = Math.abs(timePosition - currentTime) < 1;
+    return Array.from({ length: 120 }).map((_, i) => {
+      // 더 자연스러운 파동을 위한 사인파 기반 높이 계산
+      const baseHeight = 30 + Math.sin(i * 0.2) * 20 + Math.sin(i * 0.5) * 15 + Math.sin(i * 0.8) * 10;
+      const randomVariation = isPlaying ? Math.random() * 15 : 0;
+      const height = baseHeight + randomVariation;
       
       return {
-        height: Math.random() * 60 + 20,
-        isCurrent: isCurrentPosition,
-        isActive: isRecording && Math.random() > 0.3
+        height: Math.max(10, Math.min(70, height)),
+        isCurrent: false,
+        isActive: false,
+        opacity: 0.8
       };
     });
   };
@@ -163,79 +166,74 @@ export default function Home() {
           <CardContent>
             <div className="bg-white rounded-lg p-4 border shadow-sm">
               {/* Audio Waveform Visualization */}
-              <div className="relative h-32 bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg overflow-hidden">
+              <div className="relative h-32 bg-white rounded-lg overflow-hidden border border-gray-300">
                 {/* Waveform bars */}
-                <div className="flex items-end justify-between h-full px-4 py-2">
+                <div className="flex items-end justify-between h-full px-2 py-2">
                   {waveformData.map((bar, i) => (
                     <div
                       key={i}
-                      className={`rounded-sm transition-all duration-200 ${
-                        bar.isCurrent 
-                          ? 'bg-blue-500 shadow-lg' 
-                          : bar.isActive 
-                            ? 'bg-blue-400' 
-                            : 'bg-gray-400'
-                      }`}
+                      className={`bg-gray-500 transition-all duration-100 ${isPlaying ? 'animate-pulse' : ''}`}
                       style={{
-                        width: '2px',
+                        width: '1px',
                         height: `${bar.height}%`,
-                        opacity: bar.isCurrent ? 1 : bar.isActive ? 0.8 : 0.4
+                        opacity: bar.opacity
                       }}
                     />
                   ))}
                 </div>
-                
-                {/* Current position indicator */}
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
-                  <div className="w-0.5 h-full bg-blue-500 relative animate-pulse">
-                    <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full shadow-lg"></div>
-                  </div>
+              </div>
+              
+              {/* Current position indicator */}
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
+                <div className="w-0.5 h-full bg-blue-500 relative">
+                  <div className={`absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full shadow-lg ${isPlaying ? 'animate-pulse' : ''}`}></div>
                 </div>
               </div>
               
-              {/* Timeline and Controls */}
-              <div className="mt-2">
-                {/* Bottom Controls */}
-                <div className="flex items-center justify-between">
-                  {/* Left: Upload Button */}
-                  <div className="flex items-center space-x-2">
-                    <Label htmlFor="audio-file-bottom" className="cursor-pointer">
-                      <div className="p-2 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors bg-white">
-                        <Upload className="h-4 w-4 text-gray-600" />
-                      </div>
-                    </Label>
-                    <Input
-                      id="audio-file-bottom"
-                      type="file"
-                      accept="audio/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                    {audioFile && (
-                      <span className="text-xs text-gray-500">{audioFile.name}</span>
-                    )}
-                  </div>
-                  
-                  {/* Center: Play Button */}
-                  <div className="flex items-center">
-                    {audioUrl && (
-                      <button
-                        onClick={togglePlayPause}
-                        className="p-3 rounded-full border border-gray-300 hover:border-blue-500 transition-colors bg-white shadow-sm"
-                      >
-                        {isPlaying ? (
-                          <Pause className="h-5 w-5 text-gray-600" />
-                        ) : (
-                          <Play className="h-5 w-5 text-gray-600" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Right: Time Display */}
-                  <div className="text-sm text-gray-600">
-                    {audioUrl ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}` : '0:00 / 0:00'}
-                  </div>
+            </div>
+            
+            {/* Timeline and Controls */}
+            <div className="mt-2">
+              {/* Bottom Controls */}
+              <div className="flex items-center justify-between">
+                {/* Left: Upload Button */}
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="audio-file-bottom" className="cursor-pointer">
+                    <div className="p-2 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors bg-white">
+                      <Upload className="h-4 w-4 text-gray-600" />
+                    </div>
+                  </Label>
+                  <Input
+                    id="audio-file-bottom"
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  {audioFile && (
+                    <span className="text-xs text-gray-500">{audioFile.name}</span>
+                  )}
+                </div>
+                
+                {/* Center: Play Button */}
+                <div className="flex items-center">
+                  {audioUrl && (
+                    <button
+                      onClick={togglePlayPause}
+                      className="p-3 rounded-full border border-gray-300 hover:border-blue-500 transition-colors bg-white shadow-sm"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-5 w-5 text-gray-600" />
+                      ) : (
+                        <Play className="h-5 w-5 text-gray-600" />
+                      )}
+                    </button>
+                  )}
+                </div>
+                
+                {/* Right: Time Display */}
+                <div className="text-sm text-gray-600">
+                  {audioUrl ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}` : '0:00 / 0:00'}
                 </div>
               </div>
             </div>
