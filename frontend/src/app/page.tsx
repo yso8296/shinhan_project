@@ -28,6 +28,11 @@ export default function Home() {
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [volume, setVolume] = useState([50]);
   
+  // 텍스트 변환 관련 상태
+  const [transcribedText, setTranscribedText] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState("");
+  
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // 실시간 효과를 위한 useEffect
@@ -48,7 +53,7 @@ export default function Home() {
   }, []);
 
   // 오디오 파일 처리
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type.startsWith('audio/')) {
       setAudioFile(file);
@@ -56,6 +61,45 @@ export default function Home() {
       setAudioUrl(url);
       setIsPlaying(false);
       setAudioCurrentTime(0);
+      setTranscribedText("");
+      setTranscriptionError("");
+      
+      // 파일 업로드 시 자동으로 텍스트 변환 시작
+      await transcribeAudio(file);
+    }
+  };
+
+  // 음성 파일을 텍스트로 변환하는 함수
+  const transcribeAudio = async (file: File) => {
+    setIsTranscribing(true);
+    setTranscriptionError("");
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:8000/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setTranscribedText(data.text);
+        console.log('음성 변환 완료:', data.text);
+      } else {
+        throw new Error('음성 변환에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('음성 변환 오류:', error);
+      setTranscriptionError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -183,57 +227,49 @@ export default function Home() {
                 </div>
               </div>
               
-              {/* Current position indicator */}
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
-                <div className="w-0.5 h-full bg-blue-500 relative">
-                  <div className={`absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full shadow-lg ${isPlaying ? 'animate-pulse' : ''}`}></div>
-                </div>
-              </div>
-              
-            </div>
-            
-            {/* Timeline and Controls */}
-            <div className="mt-2">
-              {/* Bottom Controls */}
-              <div className="flex items-center justify-between">
-                {/* Left: Upload Button */}
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="audio-file-bottom" className="cursor-pointer">
-                    <div className="p-2 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors bg-white">
-                      <Upload className="h-4 w-4 text-gray-600" />
-                    </div>
-                  </Label>
-                  <Input
-                    id="audio-file-bottom"
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  {audioFile && (
-                    <span className="text-xs text-gray-500">{audioFile.name}</span>
-                  )}
-                </div>
-                
-                {/* Center: Play Button */}
-                <div className="flex items-center">
-                  {audioUrl && (
-                    <button
-                      onClick={togglePlayPause}
-                      className="p-3 rounded-full border border-gray-300 hover:border-blue-500 transition-colors bg-white shadow-sm"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-5 w-5 text-gray-600" />
-                      ) : (
-                        <Play className="h-5 w-5 text-gray-600" />
-                      )}
-                    </button>
-                  )}
-                </div>
-                
-                {/* Right: Time Display */}
-                <div className="text-sm text-gray-600">
-                  {audioUrl ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}` : '0:00 / 0:00'}
+              {/* Timeline and Controls */}
+              <div className="mt-2">
+                {/* Bottom Controls */}
+                <div className="flex items-center justify-between">
+                  {/* Left: Upload Button */}
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="audio-file-bottom" className="cursor-pointer">
+                      <div className="p-2 rounded-lg border border-gray-300 hover:border-blue-500 transition-colors bg-white">
+                        <Upload className="h-4 w-4 text-gray-600" />
+                      </div>
+                    </Label>
+                    <Input
+                      id="audio-file-bottom"
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    {audioFile && (
+                      <span className="text-xs text-gray-500">{audioFile.name}</span>
+                    )}
+                  </div>
+                  
+                  {/* Center: Play Button */}
+                  <div className="flex items-center">
+                    {audioUrl && (
+                      <button
+                        onClick={togglePlayPause}
+                        className="p-3 rounded-full border border-gray-300 hover:border-blue-500 transition-colors bg-white shadow-sm"
+                      >
+                        {isPlaying ? (
+                          <Pause className="h-5 w-5 text-gray-600" />
+                        ) : (
+                          <Play className="h-5 w-5 text-gray-600" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Right: Time Display */}
+                  <div className="text-sm text-gray-600">
+                    {audioUrl ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}` : '0:00 / 0:00'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -263,14 +299,31 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="bg-gray-50 rounded-lg p-4 min-h-[100px] border-l-4 border-blue-500">
-              <p className="text-gray-800 leading-relaxed">
-                안녕하세요, 이번 달 요금이 평소보다 훨씬 많이 나와서 문의드려요. 
-                제가 작년부터 썼는데 이래 많이 나온 거는 내 처음인데요. 
-                아니 근데...
-              </p>
+              {isTranscribing ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-gray-500">음성을 텍스트로 변환 중...</span>
+                </div>
+              ) : transcriptionError ? (
+                <div className="text-red-600 text-sm">
+                  오류: {transcriptionError}
+                </div>
+              ) : transcribedText ? (
+                <p className="text-gray-800 leading-relaxed">
+                  {transcribedText}
+                </p>
+              ) : (
+                <p className="text-gray-800 leading-relaxed">
+                  안녕하세요, 이번 달 요금이 평소보다 훨씬 많이 나와서 문의드려요. 
+                  제가 작년부터 썼는데 이래 많이 나온 거는 내 처음인데요. 
+                  아니 근데...
+                </p>
+              )}
               <div className="mt-2 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-500">실시간 변환 중...</span>
+                <span className="text-sm text-gray-500">
+                  {isTranscribing ? '실시간 변환 중...' : '변환 완료'}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -287,7 +340,7 @@ export default function Home() {
           <CardContent>
             <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
               <p className="text-blue-800 font-medium">
-                통신 요금 상승으로 인한 문의
+                {transcribedText ? '음성 파일 분석 완료' : '통신 요금 상승으로 인한 문의'}
               </p>
               <div className="mt-2 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
@@ -308,7 +361,7 @@ export default function Home() {
           <CardContent>
             <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
               <p className="text-yellow-800 leading-relaxed font-medium">
-                먼저 고객님의 정보 확인을 위해서 성함과 생년월일을 알 수 있을까요?
+                {transcribedText ? '음성 내용을 바탕으로 한 맞춤형 응답을 생성 중입니다.' : '먼저 고객님의 정보 확인을 위해서 성함과 생년월일을 알 수 있을까요?'}
               </p>
               <div className="mt-3 flex items-center space-x-2">
                 <Badge variant="outline" className="text-yellow-700 border-yellow-300">
