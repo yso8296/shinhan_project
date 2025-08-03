@@ -67,6 +67,11 @@ export default function Home() {
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [summaryError, setSummaryError] = useState("")
 
+  // 스크립트 관련 상태
+  const [script, setScript] = useState("")
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false)
+  const [scriptError, setScriptError] = useState("")
+
   // 서버 상태
   const [serverStatus, setServerStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
 
@@ -117,8 +122,10 @@ export default function Home() {
     setTranscribedText("")
     setDisplayedText("")
     setSummary("")
+    setScript("")
     setTranscriptionError("")
     setSummaryError("")
+    setScriptError("")
 
     // 오디오 URL 생성
     const url = URL.createObjectURL(file)
@@ -219,6 +226,11 @@ export default function Home() {
       if (data.success) {
         setSummary(data.summary)
         console.log('요약 완료:', data.summary)
+        
+        // 요약 완료 후 자동으로 스크립트 생성
+        setTimeout(async () => {
+          await generateScript(text)
+        }, 1000)
       } else {
         throw new Error('요약에 실패했습니다.')
       }
@@ -227,6 +239,45 @@ export default function Home() {
       setSummaryError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
     } finally {
       setIsSummarizing(false)
+    }
+  }
+
+  // 스크립트를 생성하는 함수
+  const generateScript = async (text: string) => {
+    if (!text.trim()) return
+    
+    setIsGeneratingScript(true)
+    setScriptError("")
+    
+    try {
+      const response = await fetch('http://localhost:8000/generate-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      })
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.')
+        }
+        throw new Error(`서버 오류: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        setScript(data.script)
+        console.log('스크립트 생성 완료:', data.script)
+      } else {
+        throw new Error('스크립트 생성에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('스크립트 생성 오류:', error)
+      setScriptError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.')
+    } finally {
+      setIsGeneratingScript(false)
     }
   }
 
@@ -556,17 +607,38 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200">
-              <p className="text-yellow-800 leading-relaxed font-medium">
-                {displayedText ? '음성 내용을 바탕으로 한 맞춤형 응답을 생성 중입니다.' : '먼저 고객님의 정보 확인을 위해서 성함과 생년월일을 알 수 있을까요?'}
-              </p>
-              <div className="mt-3 flex items-center space-x-2">
-                <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-                  신뢰도: 95%
-                </Badge>
-                <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-                  추천도: 높음
-                </Badge>
-              </div>
+              {isGeneratingScript ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-yellow-600">AI가 맞춤형 상담 스크립트를 생성 중...</span>
+                </div>
+              ) : scriptError ? (
+                <div className="text-red-600 text-sm">
+                  스크립트 생성 오류: {scriptError}
+                </div>
+              ) : script ? (
+                <div className="space-y-3">
+                  <div className="text-yellow-800 leading-relaxed">
+                    {script.split('\n').map((line, index) => (
+                      <p key={index} className="mb-2">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs text-yellow-600">
+                    <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
+                    <span>AI 스크립트 생성 완료</span>
+                  </div>
+                </div>
+              ) : displayedText ? (
+                <div className="text-yellow-600 text-sm">
+                  음성 내용을 바탕으로 한 맞춤형 응답을 생성 중입니다...
+                </div>
+              ) : (
+                <div className="text-yellow-600 text-sm">
+                  음성 파일을 업로드하면 AI가 맞춤형 상담 스크립트를 생성합니다.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

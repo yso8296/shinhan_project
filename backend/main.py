@@ -232,6 +232,52 @@ async def summarize_text(request: SummaryRequest):
         logger.error(f"예상치 못한 오류: {str(e)}")
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
 
+@app.post("/generate-script")
+async def generate_script(request: SummaryRequest):
+    """
+    고객 대화 내용을 분석하여 맞춤형 상담 스크립트를 생성하는 API
+    """
+    try:
+        if not request.text.strip():
+            raise HTTPException(status_code=400, detail="스크립트를 생성할 텍스트가 없습니다.")
+        
+        # OpenAI GPT API 호출
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 분석하여 상담사가 사용할 수 있는 맞춤형 대응 스크립트를 생성해주세요.\n\n다음 3단계로 구성된 자연스러운 대화 스크립트를 작성해주세요:\n\n먼저 고객의 상황과 감정에 대한 이해와 공감을 표현하고, 그 다음 고객의 문제에 대한 구체적이고 실용적인 해결 방안을 제시하며, 마지막으로 향후 유사한 문제 방지를 위한 추가 서비스나 안내를 제공해주세요.\n\n각 단계는 자연스럽게 연결되며, '1단계', '2단계' 등의 번호 표기는 사용하지 말고 고객의 감정 상태와 문의 내용에 맞는 따뜻하고 전문적인 톤으로 자연스러운 대화 형식으로 작성해주세요."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"다음 고객 문의 내용을 바탕으로 상담 스크립트를 생성해주세요: {request.text}"
+                    }
+                ],
+                max_tokens=400,
+                temperature=0.3
+            )
+            
+            script = response.choices[0].message.content.strip()
+            logger.info(f"상담 스크립트 생성 완료: {script}")
+            
+            return JSONResponse(content={
+                "success": True,
+                "script": script,
+                "original_text": request.text
+            })
+            
+        except Exception as e:
+            logger.error(f"GPT API 오류: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"스크립트 생성 중 오류가 발생했습니다: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"예상치 못한 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+
 @app.get("/health")
 async def health_check():
     """
