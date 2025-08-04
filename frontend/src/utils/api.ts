@@ -51,7 +51,7 @@ export const summarizeText = async (text: string): Promise<{ success: boolean; s
     return { success: false, error: '텍스트가 비어있습니다.' }
   }
   
-  // 텍스트가 너무 짧으면 요약하지 않음
+  // 텍스트 길이 검증 (10자 이상으로 변경)
   if (text.trim().length < 10) {
     console.log('텍스트가 너무 짧아서 요약 건너뜀 (길이:', text.trim().length, '자)')
     return { success: false, error: '텍스트가 너무 짧습니다. 최소 10자 이상이 필요합니다.' }

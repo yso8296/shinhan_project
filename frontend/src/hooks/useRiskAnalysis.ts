@@ -51,7 +51,7 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
       }))
       return null
     }
-  }, [])
+  }, [setRiskAnalysisState])
 
   // 실시간 위험도 분석 useEffect
   useEffect(() => {
@@ -77,6 +77,12 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
     
     // 즉시 위험도 분석 실행
     const executeRiskAnalysis = async () => {
+      // 재생 상태 재확인
+      if (!isPlaying) {
+        console.log('⏸️ 분석 실행 중 재생 중지 감지 - 분석 중단')
+        return
+      }
+      
       try {
         const result = await performRiskAnalysis(currentText)
         if (result) {
@@ -117,7 +123,7 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
       clearInterval(interval)
       console.log('🧹 위험도 분석 인터벌 정리')
     }
-  }, [isPlaying, realTimeText, displayedText, performRiskAnalysis])
+  }, [isPlaying, realTimeText, displayedText])
 
   // 재생 상태가 변경될 때마다 강제로 인터벌 정리
   useEffect(() => {
@@ -128,12 +134,17 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
         ...prev,
         isAnalyzing: false,
         realTimeRiskLevel: 0,
-        realTimeRiskStage: "정상"
+        realTimeRiskStage: "정상",
+        riskLevel: 0,
+        riskStage: "정상",
+        emotion: "",
+        analysis: "",
+        error: ""
       }))
     } else {
       console.log('▶️ 재생 시작 감지 - 위험도 분석 준비')
     }
-  }, [isPlaying])
+  }, [isPlaying, setRiskAnalysisState])
 
   // 상태 초기화
   const resetRiskAnalysis = useCallback(() => {

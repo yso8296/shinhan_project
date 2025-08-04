@@ -133,7 +133,6 @@ export default function Home() {
     // 모든 상태 초기화
     handleFileUpload(event)
     resetTranscription()
-    console.log('🔧 AI 분석 상태 초기화 호출')
     resetAIAnalysis()
     resetRiskAnalysis()
     disconnectWebSocket()
@@ -224,6 +223,8 @@ export default function Home() {
     // 위험도 분석 상태 초기화
     resetRiskAnalysis()
     
+    // 재생 종료 시 요약은 텍스트 변환 완료 후 자동으로 실행됨
+    
     console.log('모든 실시간 처리 중단 완료')
   }, [onEnded, setRealTimeTranscribing, disconnectWebSocket, stopAudioStream, updateRealTimeText, resetRiskAnalysis])
 
@@ -252,72 +253,52 @@ export default function Home() {
     }
   }, [riskAnalysisState.realTimeRiskStage, stopAudio, mediaRecorder, setRealTimeTranscribing, disconnectWebSocket, stopAudioStream])
 
-  // 텍스트가 있을 때 자동으로 요약 시도
+  // 텍스트 변환 완료 시 요약 및 스크립트 실행
   useEffect(() => {
-    const currentText = transcriptionState.displayedText || transcriptionState.transcribedText
+    const currentText = transcriptionState.transcribedText
     
-    console.log('🔍 자동 요약 useEffect 실행:', {
-      currentText: currentText?.substring(0, 50) + '...',
+    console.log('🔍 요약/스크립트 useEffect 실행:', {
+      hasText: !!currentText,
       textLength: currentText?.trim().length,
+      isTranscribing: transcriptionState.isTranscribing,
+      hasSummary: !!aiAnalysisState.summary,
       isSummarizing: aiAnalysisState.isSummarizing,
-      existingSummary: aiAnalysisState.summary,
-      serverStatus: serverState.status,
-      isTyping: transcriptionState.isTyping
+      hasScript: !!aiAnalysisState.script,
+      isGeneratingScript: aiAnalysisState.isGeneratingScript
     })
     
-    if (currentText && currentText.trim().length >= 10 && !aiAnalysisState.isSummarizing && serverState.status === 'connected' && !transcriptionState.isTyping) {
-      console.log('🚀 완전한 텍스트 감지 - 자동 요약 시도:', currentText.substring(0, 50) + '...')
-      console.log('텍스트 길이:', currentText.trim().length, '자')
-      console.log('타이핑 상태:', transcriptionState.isTyping)
-      console.log('요약 상태:', aiAnalysisState.isSummarizing)
-      console.log('기존 요약:', aiAnalysisState.summary)
-      
-      // 즉시 요약 시도
-      console.log('📝 자동 요약 시작')
-      summarizeTextContent(currentText).then((result) => {
-        if (result) {
-          console.log('✅ 자동 요약 완료:', result)
-        } else {
-          console.log('❌ 자동 요약 실패: 결과가 null')
-        }
-      }).catch(error => {
-        console.error('❌ 자동 요약 오류:', error)
-      })
+    // 이미 요약과 스크립트가 있거나 진행 중이면 실행하지 않음
+    if ((aiAnalysisState.summary && aiAnalysisState.script) || 
+        aiAnalysisState.isSummarizing || 
+        aiAnalysisState.isGeneratingScript) {
+      console.log('❌ 요약/스크립트 이미 존재하거나 진행 중')
+      return
+    }
+    
+    // 텍스트가 있고, 변환이 완료되었을 때 요약 및 스크립트 실행
+    if (currentText && currentText.trim().length >= 10 && !transcriptionState.isTranscribing) {
+      console.log('📝 텍스트 변환 완료 - 요약 및 스크립트 시작:', currentText.substring(0, 50) + '...')
+      generateSummaryAndScript(currentText)
     } else {
-      console.log('❌ 자동 요약 조건 불충족:', {
+      console.log('❌ 요약/스크립트 조건 불충족:', {
         hasText: !!currentText,
         textLength: currentText?.trim().length,
-        isSummarizing: aiAnalysisState.isSummarizing,
-        hasSummary: !!aiAnalysisState.summary,
-        serverConnected: serverState.status === 'connected',
-        isTyping: transcriptionState.isTyping
+        isTranscribing: transcriptionState.isTranscribing
       })
     }
-  }, [transcriptionState.displayedText, transcriptionState.transcribedText, aiAnalysisState.isSummarizing, aiAnalysisState.summary, serverState.status, transcriptionState.isTyping, summarizeTextContent])
+  }, [transcriptionState.transcribedText, transcriptionState.isTranscribing, aiAnalysisState.summary, aiAnalysisState.script, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, generateSummaryAndScript])
 
-  // 요약 재시도 함수
+  // 요약 및 스크립트 재시도 함수
   const handleRetrySummary = useCallback(() => {
-    const currentText = transcriptionState.displayedText || transcriptionState.transcribedText
-    console.log('🔧 handleRetrySummary 호출:', {
-      currentText: currentText?.substring(0, 50) + '...',
-      textLength: currentText?.trim().length,
-      isTyping: transcriptionState.isTyping,
-      isSummarizing: aiAnalysisState.isSummarizing
-    })
+    const currentText = transcriptionState.transcribedText
     
-    if (currentText && currentText.trim().length >= 10 && !transcriptionState.isTyping && !aiAnalysisState.isSummarizing) {
-      console.log('재시도 요약 시작:', currentText.substring(0, 50) + '...')
-      console.log('텍스트 길이:', currentText.trim().length, '자')
-      summarizeTextContent(currentText)
-    } else {
-      console.log('재시도 요약 조건 불충족:', {
-        hasText: !!currentText,
-        textLength: currentText?.trim().length,
-        isTyping: transcriptionState.isTyping,
-        isSummarizing: aiAnalysisState.isSummarizing
-      })
+    if (currentText && currentText.trim().length >= 10 && 
+        !aiAnalysisState.isSummarizing && 
+        !aiAnalysisState.isGeneratingScript) {
+      console.log('재시도 요약 및 스크립트 시작:', currentText.substring(0, 50) + '...')
+      generateSummaryAndScript(currentText)
     }
-  }, [transcriptionState.displayedText, transcriptionState.transcribedText, transcriptionState.isTyping, aiAnalysisState.isSummarizing, summarizeTextContent])
+  }, [transcriptionState.transcribedText, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, generateSummaryAndScript])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">

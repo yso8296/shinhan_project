@@ -23,16 +23,16 @@ export const AISummary = ({
 }: AISummaryProps) => {
   const { summary, isSummarizing, summaryError } = aiAnalysisState
   
-  // 디버깅을 위한 로그
-  console.log('🔍 AISummary 컴포넌트 렌더링:', {
-    summary: summary,
-    isSummarizing: isSummarizing,
-    summaryError: summaryError,
-    summaryLength: summary?.length,
-    serverStatus: serverState.status,
-    hasSummary: !!summary,
-    summaryType: typeof summary
-  })
+  // 무한 렌더링 방지를 위해 디버그 로그 제거
+  // console.log('🔍 AISummary 컴포넌트 렌더링:', {
+  //   summary: summary,
+  //   isSummarizing: isSummarizing,
+  //   summaryError: summaryError,
+  //   summaryLength: summary?.length,
+  //   serverStatus: serverState.status,
+  //   hasSummary: !!summary,
+  //   summaryType: typeof summary
+  // })
 
   return (
     <Card className="w-full">
@@ -79,7 +79,7 @@ export const AISummary = ({
                   </div>
                 </div>
               </div>
-                             {(displayedText || realTimeText || transcribedText) && (
+                             {transcribedText && (
                  <div className="flex items-center space-x-2">
                    <Button 
                      onClick={onRetrySummary}
@@ -87,24 +87,24 @@ export const AISummary = ({
                      variant="outline"
                      className="text-xs"
                    >
-                     다시 시도
+                     요약 & 스크립트 재생성
                    </Button>
                    <Button 
                      onClick={() => {
-                       const currentText = realTimeText || displayedText || transcribedText
-                       if (currentText && currentText.trim().length >= 10) {
-                         console.log('🔧 수동 요약 버튼 클릭:', currentText.substring(0, 50) + '...')
+                       if (transcribedText && transcribedText.trim().length >= 10) {
+                         console.log('🔧 수동 요약 & 스크립트 버튼 클릭:', transcribedText.substring(0, 50) + '...')
                          onRetrySummary()
                        }
                      }}
                      size="sm"
                      variant="outline"
                      className="text-xs"
+                     disabled={!transcribedText || transcribedText.trim().length < 10}
                    >
-                     수동 요약
+                     수동 요약 & 스크립트
                    </Button>
                    <span className="text-xs text-gray-500">
-                     텍스트 길이: {(realTimeText || displayedText || transcribedText || '').length}자
+                     텍스트 길이: {transcribedText.length}자
                    </span>
                  </div>
                )}

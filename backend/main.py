@@ -330,7 +330,7 @@ async def summarize_text(request: SummaryRequest):
         if not request.text.strip():
             raise HTTPException(status_code=400, detail="요약할 텍스트가 없습니다.")
         
-        # 텍스트 길이 검증
+        # 텍스트 길이 검증 (10자 이상으로 변경)
         if len(request.text.strip()) < 10:
             raise HTTPException(status_code=400, detail="요약할 텍스트가 너무 짧습니다. 최소 10자 이상이 필요합니다.")
         
