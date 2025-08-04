@@ -30,7 +30,11 @@ app.add_middleware(
 )
 
 # OpenAI 클라이언트 초기화
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+if settings.OPENAI_API_KEY:
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+else:
+    client = None
+    logger.warning("OpenAI API 키가 설정되지 않았습니다. AI 기능이 제한됩니다.")
 
 # 업로드 디렉토리 생성
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -315,8 +319,22 @@ async def summarize_text(request: SummaryRequest):
     텍스트를 요약하는 API
     """
     try:
+        # API 키 확인
+        if not settings.OPENAI_API_KEY:
+            logger.error("OpenAI API 키가 설정되지 않았습니다.")
+            raise HTTPException(
+                status_code=500, 
+                detail="OpenAI API 키가 설정되지 않았습니다. .env 파일에 OPENAI_API_KEY를 추가해주세요."
+            )
+        
         if not request.text.strip():
             raise HTTPException(status_code=400, detail="요약할 텍스트가 없습니다.")
+        
+        # 텍스트 길이 검증
+        if len(request.text.strip()) < 10:
+            raise HTTPException(status_code=400, detail="요약할 텍스트가 너무 짧습니다. 최소 10자 이상이 필요합니다.")
+        
+        logger.info(f"요약 요청 받음: 텍스트 길이 {len(request.text)}자")
         
         # OpenAI GPT API 호출
         try:
@@ -325,15 +343,15 @@ async def summarize_text(request: SummaryRequest):
                 messages=[
                     {
                         "role": "system",
-                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 분석하여 형식을 갖춘 3문장으로 요약해주세요:\n\n첫 번째 문장에서는 고객의 주요 문의사항과 구체적인 상황을 설명하고, 두 번째 문장에서는 고객의 감정 상태와 배경 상황을 설명하며, 세 번째 문장에서는 고객이 원하는 해결책이나 추가 문의사항을 설명해주세요.\n\n각 문장은 구체적이고 명확하게 작성하며, '첫 번째 문장', '두 번째 문장' 등의 표기는 사용하지 말고 자연스럽게 연결되는 3문장으로 작성해주세요. 반드시 격식체(~~입니다, ~~했습니다, ~~하였습니다)로 작성하고, 대화체(~~해요, ~~이에요)는 사용하지 마세요."
+                        "content": "당신은 은행 상담사 정서 케어를 위한 AI 어시스턴트입니다. 고객의 문의 내용을 분석하여 3-4문장으로 간결하고 명확하게 요약해주세요.\n\n다음 순서로 요약해주세요:\n1. 고객의 주요 문의사항과 상황\n2. 고객의 감정 상태와 배경\n3. 고객이 직면한 문제나 어려움\n4. 고객이 원하는 해결책이나 추가 문의사항\n\n격식체로 작성하고, 자연스럽게 연결되는 문장들로 구성해주세요. 전체 내용을 종합적으로 분석하여 요약해주세요."
                     },
                     {
                         "role": "user",
-                        "content": f"다음 고객 문의 내용을 3문장으로 요약해주세요: {request.text}"
+                        "content": f"다음 고객 문의 내용을 전체적으로 분석하여 요약해주세요: {request.text}"
                     }
                 ],
-                max_tokens=300,
-                temperature=0.3
+                max_tokens=400,
+                temperature=0.1
             )
             
             summary = response.choices[0].message.content.strip()
@@ -361,8 +379,18 @@ async def generate_script(request: SummaryRequest):
     고객 대화 내용을 분석하여 맞춤형 상담 스크립트를 생성하는 API
     """
     try:
+        # API 키 확인
+        if not settings.OPENAI_API_KEY:
+            logger.error("OpenAI API 키가 설정되지 않았습니다.")
+            raise HTTPException(
+                status_code=500, 
+                detail="OpenAI API 키가 설정되지 않았습니다. .env 파일에 OPENAI_API_KEY를 추가해주세요."
+            )
+        
         if not request.text.strip():
             raise HTTPException(status_code=400, detail="스크립트를 생성할 텍스트가 없습니다.")
+        
+        logger.info(f"스크립트 생성 요청 받음: 텍스트 길이 {len(request.text)}자")
         
         # OpenAI GPT API 호출
         try:
@@ -407,8 +435,18 @@ async def analyze_risk(request: SummaryRequest):
     고객 대화 내용을 분석하여 위험도를 판단하는 API
     """
     try:
+        # API 키 확인
+        if not settings.OPENAI_API_KEY:
+            logger.error("OpenAI API 키가 설정되지 않았습니다.")
+            raise HTTPException(
+                status_code=500, 
+                detail="OpenAI API 키가 설정되지 않았습니다. .env 파일에 OPENAI_API_KEY를 추가해주세요."
+            )
+        
         if not request.text.strip():
             raise HTTPException(status_code=400, detail="분석할 텍스트가 없습니다.")
+        
+        logger.info(f"위험도 분석 요청 받음: 텍스트 길이 {len(request.text)}자")
         
         # OpenAI GPT API 호출
         try:
