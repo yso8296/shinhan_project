@@ -12,6 +12,11 @@ export const useAIAnalysis = () => {
     scriptError: ""
   })
 
+  // 신한은행 로고 URL 반환 함수
+  const getShinhanLogo = useCallback(() => {
+    return '/shinhan-logo.jpg'
+  }, [])
+
   // 텍스트를 요약하는 함수 - 간단하게 수정
   const summarizeTextContent = useCallback(async (text: string) => {
     if (!text.trim() || text.trim().length < 10) {
@@ -152,6 +157,7 @@ export const useAIAnalysis = () => {
     summarizeTextContent,
     generateScriptContent,
     generateSummaryAndScript,
-    resetAIAnalysis
+    resetAIAnalysis,
+    getShinhanLogo
   }
 } 

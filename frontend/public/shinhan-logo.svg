@@ -1,0 +1,17 @@
+<svg width="200" height="120" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- 흰색 배경 -->
+  <rect width="200" height="120" fill="white"/>
+  
+  <!-- 신한은행 로고 배경 원형 -->
+  <circle cx="100" cy="50" r="35" fill="#1e3a8a"/>
+  
+  <!-- 신한은행 S 형태 심볼 (물결/리본 형태) -->
+  <path d="M85 35 Q95 30 105 35 Q110 40 105 45 Q100 50 95 45 Q90 40 95 35 Q100 30 105 35 Q110 40 105 45 Q100 50 95 45 Q90 40 95 35" 
+        fill="white" stroke="white" stroke-width="2"/>
+  
+  <!-- 상단 뿔/깃털 형태 -->
+  <path d="M105 30 Q110 25 115 30 Q110 35 105 30" fill="white"/>
+  
+  <!-- 신한은행 텍스트 (하단) -->
+  <text x="100" y="100" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1e3a8a" text-anchor="middle">신한은행</text>
+</svg> 

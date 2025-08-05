@@ -368,7 +368,7 @@ export default function Home() {
   }, [transcriptionState.transcribedText, aiAnalysisState.summary, aiAnalysisState.script, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, summarizeTextContent, generateScriptContent])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 p-4 md:p-6">
       {/* Audio Element */}
       {audioState.url && (
         <audio
