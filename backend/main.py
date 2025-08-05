@@ -388,12 +388,15 @@ async def generate_script(request: SummaryRequest):
             )
         
         if not request.text.strip():
+            logger.error("스크립트를 생성할 텍스트가 없습니다.")
             raise HTTPException(status_code=400, detail="스크립트를 생성할 텍스트가 없습니다.")
         
         logger.info(f"스크립트 생성 요청 받음: 텍스트 길이 {len(request.text)}자")
+        logger.info(f"스크립트 생성할 텍스트 미리보기: {request.text[:100]}...")
         
         # OpenAI GPT API 호출
         try:
+            logger.info("OpenAI GPT API 호출 시작...")
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -411,7 +414,8 @@ async def generate_script(request: SummaryRequest):
             )
             
             script = response.choices[0].message.content.strip()
-            logger.info(f"상담 스크립트 생성 완료: {script}")
+            logger.info(f"상담 스크립트 생성 완료: {script[:100]}...")
+            logger.info(f"스크립트 길이: {len(script)}자")
             
             return JSONResponse(content={
                 "success": True,

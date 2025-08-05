@@ -14,9 +14,37 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
     realTimeRiskStage: "정상"
   })
 
+  // 재생 상태 변경 감지
+  useEffect(() => {
+    console.log('🎵 재생 상태 변경 감지:', isPlaying)
+    
+    // 재생이 중지되면 즉시 모든 분석 중단
+    if (!isPlaying) {
+      console.log('🛑 재생 중지 감지 - 위험도 분석 즉시 중단')
+      setRiskAnalysisState(prev => ({
+        ...prev,
+        isAnalyzing: false,
+        realTimeRiskLevel: 0,
+        realTimeRiskStage: "정상",
+        riskLevel: 0,
+        riskStage: "정상",
+        emotion: "",
+        analysis: "",
+        error: ""
+      }))
+    }
+  }, [isPlaying])
+
   // 위험도 분석 함수
   const performRiskAnalysis = useCallback(async (text: string) => {
     console.log('=== performRiskAnalysis 시작 ===')
+    console.log('재생 상태 확인:', isPlaying)
+    
+    if (!isPlaying) {
+      console.log('⏸️ 재생 중이 아니므로 위험도 분석 중단')
+      return null
+    }
+    
     if (!text.trim()) return null
     
     setRiskAnalysisState(prev => ({ ...prev, isAnalyzing: true, error: "" }))
@@ -51,7 +79,7 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
       }))
       return null
     }
-  }, [setRiskAnalysisState])
+  }, [isPlaying])
 
   // 실시간 위험도 분석 useEffect
   useEffect(() => {
@@ -77,7 +105,7 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
     
     // 즉시 위험도 분석 실행
     const executeRiskAnalysis = async () => {
-      // 재생 상태 재확인
+      // 재생 상태 재확인 (더 엄격하게)
       if (!isPlaying) {
         console.log('⏸️ 분석 실행 중 재생 중지 감지 - 분석 중단')
         return
@@ -123,28 +151,7 @@ export const useRiskAnalysis = (isPlaying: boolean, realTimeText: string, displa
       clearInterval(interval)
       console.log('🧹 위험도 분석 인터벌 정리')
     }
-  }, [isPlaying, realTimeText, displayedText])
-
-  // 재생 상태가 변경될 때마다 강제로 인터벌 정리
-  useEffect(() => {
-    if (!isPlaying) {
-      console.log('🛑 재생 중지 감지 - 위험도 분석 완전 중단')
-      // 재생이 중지되면 분석 상태도 초기화
-      setRiskAnalysisState(prev => ({
-        ...prev,
-        isAnalyzing: false,
-        realTimeRiskLevel: 0,
-        realTimeRiskStage: "정상",
-        riskLevel: 0,
-        riskStage: "정상",
-        emotion: "",
-        analysis: "",
-        error: ""
-      }))
-    } else {
-      console.log('▶️ 재생 시작 감지 - 위험도 분석 준비')
-    }
-  }, [isPlaying, setRiskAnalysisState])
+  }, [isPlaying, realTimeText, displayedText, performRiskAnalysis])
 
   // 상태 초기화
   const resetRiskAnalysis = useCallback(() => {

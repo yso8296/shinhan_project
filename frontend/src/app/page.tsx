@@ -52,6 +52,7 @@ export default function Home() {
   const [autoProtection, setAutoProtection] = useState(true)
   const [sensitivity, setSensitivity] = useState([50])
   const [showSettings, setShowSettings] = useState(false)
+  const [isBlocked, setIsBlocked] = useState(false) // 위험도 차단 상태
 
   // 커스텀 훅들 사용
   const {
@@ -177,7 +178,12 @@ export default function Home() {
       startAudioStream(
         (text) => {
           console.log('실시간 텍스트 업데이트:', text)
-          updateRealTimeText(text)
+          // 차단 상태가 아닐 때만 텍스트 업데이트
+          if (!isBlocked) {
+            updateRealTimeText(text)
+          } else {
+            console.log('🚫 차단 상태: 실시간 텍스트 업데이트 차단됨')
+          }
         },
         (error) => console.error('실시간 음성 변환 오류:', error)
       )
@@ -205,7 +211,8 @@ export default function Home() {
     startAudioStream,
     updateRealTimeText,
     transcribeAudioFile,
-    typeTextProgressively
+    typeTextProgressively,
+    isBlocked
   ])
 
   // 오디오 재생 종료 처리 (통합)
@@ -220,50 +227,96 @@ export default function Home() {
     // 실시간 텍스트 초기화 (재생 종료 시)
     updateRealTimeText("")
     
-    // 위험도 분석 상태 초기화
+    // 위험도 분석 상태 완전 초기화
     resetRiskAnalysis()
+    console.log('🛑 재생 종료: 위험도 분석 완전 중단')
     
-    // 재생 종료 시 요약은 텍스트 변환 완료 후 자동으로 실행됨
+    // 재생 종료 시 2초 후 요약 및 스크립트 실행 (텍스트 변환 완료 대기)
+    setTimeout(() => {
+      const currentText = transcriptionState.transcribedText
+      console.log('🎯 재생 종료 후 요약/스크립트 체크:', {
+        hasText: !!currentText,
+        textLength: currentText?.trim().length,
+        textPreview: currentText?.substring(0, 50) + '...'
+      })
+      
+      if (currentText && currentText.trim().length >= 10) {
+        console.log('🎯 재생 종료 후 요약/스크립트 시작:', currentText.substring(0, 50) + '...')
+        
+        // 요약과 스크립트를 독립적으로 실행
+        if (!aiAnalysisState.summary && !aiAnalysisState.isSummarizing) {
+          console.log('📝 재생 종료 후 요약 생성 시작...')
+          summarizeTextContent(currentText)
+        }
+        
+        if (!aiAnalysisState.script && !aiAnalysisState.isGeneratingScript) {
+          console.log('📄 재생 종료 후 스크립트 생성 시작...')
+          generateScriptContent(currentText)
+        }
+      } else {
+        console.log('❌ 요약/스크립트 조건 불충족:', {
+          hasText: !!currentText,
+          textLength: currentText?.trim().length
+        })
+      }
+    }, 2000)
     
     console.log('모든 실시간 처리 중단 완료')
-  }, [onEnded, setRealTimeTranscribing, disconnectWebSocket, stopAudioStream, updateRealTimeText, resetRiskAnalysis])
+  }, [onEnded, setRealTimeTranscribing, disconnectWebSocket, stopAudioStream, updateRealTimeText, resetRiskAnalysis, aiAnalysisState.summary, aiAnalysisState.isSummarizing, aiAnalysisState.script, aiAnalysisState.isGeneratingScript, summarizeTextContent, generateScriptContent])
 
   // 위험도에 따른 차단 처리
   useEffect(() => {
-    if (riskAnalysisState.realTimeRiskStage === "위험" || riskAnalysisState.realTimeRiskStage === "경고") {
+    if (riskAnalysisState.realTimeRiskStage === "위험") {
       console.log(`🚨 ${riskAnalysisState.realTimeRiskStage} 단계 감지: 즉시 차단 시작`)
+      
+      // 차단 상태 설정
+      setIsBlocked(true)
             
-            // 오디오 강제 정지
+      // 오디오 강제 정지
       stopAudio()
             
-            // 미디어 레코더 정지
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-              mediaRecorder.stop()
-              console.log('🎤 미디어 레코더 정지 완료')
-            }
+      // 미디어 레코더 정지
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop()
+        console.log('🎤 미디어 레코더 정지 완료')
+      }
             
-            // 실시간 처리 중단
+      // 실시간 처리 중단
       setRealTimeTranscribing(false)
+      
+      // 실시간 텍스트 완전 차단
+      updateRealTimeText("")
+      console.log('📝 실시간 텍스트 차단 완료')
             
-            // 웹소켓 연결 해제
-            disconnectWebSocket()
-            stopAudioStream()
+      // 웹소켓 연결 해제
+      disconnectWebSocket()
+      stopAudioStream()
       
       console.log(`${riskAnalysisState.realTimeRiskStage} 단계 차단 완료!`)
+    } else if (riskAnalysisState.realTimeRiskStage === "정상" && isBlocked) {
+      // 위험도가 정상으로 돌아오면 차단 해제
+      console.log('✅ 위험도 정상화: 차단 해제')
+      setIsBlocked(false)
+      
+      // 실시간 텍스트 다시 활성화
+      if (audioState.isPlaying) {
+        console.log('📝 실시간 텍스트 다시 활성화')
+        setRealTimeTranscribing(true)
+      }
     }
-  }, [riskAnalysisState.realTimeRiskStage, stopAudio, mediaRecorder, setRealTimeTranscribing, disconnectWebSocket, stopAudioStream])
+  }, [riskAnalysisState.realTimeRiskStage, isBlocked, stopAudio, mediaRecorder, setRealTimeTranscribing, updateRealTimeText, disconnectWebSocket, stopAudioStream, audioState.isPlaying])
 
-  // 텍스트 변환 완료 시 요약 및 스크립트 실행
+  // 텍스트 변환 완료 시 요약 및 스크립트 실행 (백업)
   useEffect(() => {
     const currentText = transcriptionState.transcribedText
     
-    console.log('🔍 요약/스크립트 useEffect 실행:', {
+    console.log('🔍 요약/스크립트 백업 useEffect 실행:', {
       hasText: !!currentText,
       textLength: currentText?.trim().length,
       isTranscribing: transcriptionState.isTranscribing,
       hasSummary: !!aiAnalysisState.summary,
-      isSummarizing: aiAnalysisState.isSummarizing,
       hasScript: !!aiAnalysisState.script,
+      isSummarizing: aiAnalysisState.isSummarizing,
       isGeneratingScript: aiAnalysisState.isGeneratingScript
     })
     
@@ -278,15 +331,19 @@ export default function Home() {
     // 텍스트가 있고, 변환이 완료되었을 때 요약 및 스크립트 실행
     if (currentText && currentText.trim().length >= 10 && !transcriptionState.isTranscribing) {
       console.log('📝 텍스트 변환 완료 - 요약 및 스크립트 시작:', currentText.substring(0, 50) + '...')
-      generateSummaryAndScript(currentText)
-    } else {
-      console.log('❌ 요약/스크립트 조건 불충족:', {
-        hasText: !!currentText,
-        textLength: currentText?.trim().length,
-        isTranscribing: transcriptionState.isTranscribing
-      })
+      
+      // 요약과 스크립트를 독립적으로 실행
+      if (!aiAnalysisState.summary && !aiAnalysisState.isSummarizing) {
+        console.log('📝 요약 생성 시작...')
+        summarizeTextContent(currentText)
+      }
+      
+      if (!aiAnalysisState.script && !aiAnalysisState.isGeneratingScript) {
+        console.log('📄 스크립트 생성 시작...')
+        generateScriptContent(currentText)
+      }
     }
-  }, [transcriptionState.transcribedText, transcriptionState.isTranscribing, aiAnalysisState.summary, aiAnalysisState.script, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, generateSummaryAndScript])
+  }, [transcriptionState.transcribedText, transcriptionState.isTranscribing, aiAnalysisState.summary, aiAnalysisState.script, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, summarizeTextContent, generateScriptContent])
 
   // 요약 및 스크립트 재시도 함수
   const handleRetrySummary = useCallback(() => {
@@ -296,9 +353,19 @@ export default function Home() {
         !aiAnalysisState.isSummarizing && 
         !aiAnalysisState.isGeneratingScript) {
       console.log('재시도 요약 및 스크립트 시작:', currentText.substring(0, 50) + '...')
-      generateSummaryAndScript(currentText)
+      
+      // 요약과 스크립트를 독립적으로 실행
+      if (!aiAnalysisState.summary) {
+        console.log('📝 재시도 요약 생성 시작...')
+        summarizeTextContent(currentText)
+      }
+      
+      if (!aiAnalysisState.script) {
+        console.log('📄 재시도 스크립트 생성 시작...')
+        generateScriptContent(currentText)
+      }
     }
-  }, [transcriptionState.transcribedText, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, generateSummaryAndScript])
+  }, [transcriptionState.transcribedText, aiAnalysisState.summary, aiAnalysisState.script, aiAnalysisState.isSummarizing, aiAnalysisState.isGeneratingScript, summarizeTextContent, generateScriptContent])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
@@ -329,6 +396,7 @@ export default function Home() {
         <RealTimeText
           transcriptionState={transcriptionState}
           latency={latency}
+          isBlocked={isBlocked}
         />
 
         {/* AI 대화 내용 요약 */}

@@ -125,13 +125,17 @@ export const summarizeText = async (text: string): Promise<{ success: boolean; s
 
 // 스크립트를 생성하는 함수
 export const generateScript = async (text: string): Promise<{ success: boolean; script?: string; error?: string }> => {
-  console.log('=== generateScript 시작 ===')
+  console.log('📄 === generateScript 시작 ===')
+  console.log('스크립트 생성할 텍스트:', text.substring(0, 100) + '...')
+  console.log('텍스트 길이:', text.trim().length, '자')
+  
   if (!text.trim()) {
+    console.log('❌ 텍스트가 비어있어서 스크립트 생성 건너뜀')
     return { success: false, error: '텍스트가 비어있습니다.' }
   }
   
   try {
-    console.log('스크립트 API 호출 시작...')
+    console.log('📡 스크립트 API 호출 시작...')
     const response = await fetch('http://localhost:8000/generate-script', {
       method: 'POST',
       headers: {
@@ -140,30 +144,53 @@ export const generateScript = async (text: string): Promise<{ success: boolean; 
       body: JSON.stringify({ text }),
     })
     
-    console.log('스크립트 API 응답 상태:', response.status, response.ok)
+    console.log('📡 스크립트 API 응답 상태:', response.status, response.ok)
     
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ 서버 오류 응답:', errorText)
+      
       if (response.status === 404) {
         throw new Error('백엔드 서버가 실행되지 않았습니다. 서버를 먼저 실행해주세요.')
+      }
+      if (response.status === 500) {
+        // API 키 오류인지 확인
+        if (errorText.includes('OPENAI_API_KEY')) {
+          throw new Error('OpenAI API 키가 설정되지 않았습니다. 백엔드 서버의 .env 파일에 OPENAI_API_KEY를 추가해주세요.')
+        }
+        throw new Error('서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+      }
+      if (response.status === 0) {
+        throw new Error('네트워크 연결을 확인해주세요.')
       }
       throw new Error(`서버 오류: ${response.status}`)
     }
     
     const data = await response.json()
-    console.log('스크립트 API 응답 데이터:', data)
+    console.log('📡 스크립트 API 응답 데이터:', data)
     
-    if (data.success) {
-      console.log('스크립트 생성 완료:', data.script)
+    if (data.success && data.script) {
+      console.log('✅ 스크립트 생성 완료:', data.script.substring(0, 100) + '...')
+      console.log('스크립트 길이:', data.script.length, '자')
       return { success: true, script: data.script }
     } else {
-      throw new Error('스크립트 생성에 실패했습니다.')
+      console.error('❌ 스크립트 응답이 올바르지 않음:', data)
+      throw new Error('스크립트 결과가 올바르지 않습니다.')
     }
   } catch (error) {
-    console.error('스크립트 생성 오류:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.' 
+    console.error('❌ 스크립트 생성 오류:', error)
+    
+    let errorMessage = '알 수 없는 오류가 발생했습니다.'
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = '백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.'
+      } else {
+        errorMessage = error.message
+      }
     }
+    
+    return { success: false, error: errorMessage }
   }
 }
 

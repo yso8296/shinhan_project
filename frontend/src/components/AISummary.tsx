@@ -106,6 +106,17 @@ export const AISummary = ({
                    <span className="text-xs text-gray-500">
                      텍스트 길이: {transcribedText.length}자
                    </span>
+                   <Button 
+                     onClick={() => {
+                       console.log('🔧 디버그: 수동 요약 & 스크립트 강제 실행')
+                       onRetrySummary()
+                     }}
+                     size="sm"
+                     variant="outline"
+                     className="text-xs bg-red-100 text-red-700 hover:bg-red-200"
+                   >
+                     강제 실행
+                   </Button>
                  </div>
                )}
             </div>
