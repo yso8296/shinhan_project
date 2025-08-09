@@ -85,26 +85,6 @@
 - **효율성**: AI 스크립트로 빠른 문제 해결
 - **만족도**: ARS 한계 극복으로 고객 만족도 향상
 
-## 🛠️ 기술 스택
-
-### Frontend
-- **Next.js 14** - React 기반 풀스택 프레임워크
-- **TypeScript** - 타입 안정성 확보
-- **Tailwind CSS** - 반응형 UI 디자인
-- **ShadCN UI** - 모던 컴포넌트 라이브러리
-- **Lucide React** - 아이콘 시스템
-
-### Backend
-- **Python FastAPI** - 고성능 API 서버
-- **WebSocket** - 실시간 양방향 통신
-- **OpenAI API** - 음성 분석 및 텍스트 생성
-- **Speech Recognition** - 음성-텍스트 변환
-
-### AI/ML
-- **실시간 음성 분석** - 감정 및 의도 분석
-- **자연어 처리** - 텍스트 필터링 및 요약
-- **스크립트 생성** - 상황별 응답 스크립트 생성
-
 ## 📊 기대 효과
 
 ### 상담원 관점
@@ -122,29 +102,28 @@
 - **고객 만족도**: 개선된 서비스 품질
 - **운영 효율성**: AI 기반 자동화로 업무 효율성 증대
 
-## 🏗️ 아키텍처
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend       │    │   AI Services   │
-│                 │    │                 │    │                 │
-│ • Next.js       │◄──►│ • FastAPI       │◄──►│ • OpenAI API    │
-│ • TypeScript    │    │ • WebSocket     │    │ • Python        │
-│ • Tailwind CSS  │    │ • Real-time     │    │ • Script Gen    │
-│ • ShadCN UI     │    │ • Status Update │    │ • Emotion Det   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   UI Components │    │   API Endpoints │    │   AI Analysis   │
-│                 │    │                 │    │                 │
-│ • Audio Waveform│    │ • WebSocket     │    │ • Voice Analysis│
-│ • Real-time Text│    │ • Audio Stream  │    │ • Text Filter   │
-│ • Risk Analysis │    │ • Status Update │    │ • Script Gen    │
-│ • AI Summary    │    │ • Block System  │    │ • Emotion Det   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
+## 🛠️ 기술 스택
+
+### Frontend
+- **Next.js 14** - React 기반 풀스택 프레임워크
+- **TypeScript** - 타입 안정성 확보
+- **Tailwind CSS** - 반응형 UI 디자인
+- **ShadCN UI** - 모던 컴포넌트 라이브러리
+- **Lucide React** - 아이콘 시스템
+
+### Backend
+- **Python FastAPI** - 고성능 API 서버
+- **WebSocket** - 실시간 양방향 통신
+- **OpenAI API** - 음성 분석 및 텍스트 생성
+- **Speech Recognition** - 음성-텍스트 변환
+
+### AI/ML
+- **OpenAI Whisper-1**: 음성→텍스트 변환(실시간/배치)
+- **snunlp/KR-FinBert-SC**: 한국어 감정 분류(분노/불만/짜증/기쁨/만족 등)
+- **beomi/KcELECTRA-base-hate**: 혐오/공격성 탐지(hate/offensive)
+- **OpenAI GPT-3.5-turbo**: 위험도 보조 분석, 요약 생성, 상담 대응 스크립트 생성
+
 
 ## 🚀 시작하기
 
