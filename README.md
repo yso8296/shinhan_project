@@ -189,8 +189,9 @@ python main.py
 # OpenAI API Key 설정
 export OPENAI_API_KEY="your-api-key"
 ```
-
-
-
 ---
+### 📊 정상 단계 시연 화면 
+<img width="80%" src="https://github.com/user-attachments/assets/803658ed-6b0f-497a-bc6f-da1fa65396cb"/>
+<img width="80%" src="https://github.com/user-attachments/assets/6108fe1d-050e-432c-8b31-b809ef60d529"/>
+
 
